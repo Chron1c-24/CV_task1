@@ -11,6 +11,8 @@ Dependencies:
     pip install opencv-python numpy
 """
 
+from pathlib import Path
+
 import cv2
 import numpy as np
 
@@ -25,9 +27,24 @@ def load_image(file_path):
     if not file_path:
         raise ValueError("Please provide an image file path.")
 
-    image = cv2.imread(str(file_path), cv2.IMREAD_UNCHANGED)
-    if image is None:
+    try:
+        data = Path(file_path).read_bytes()
+    except OSError:
         raise ValueError(f"Could not load image: {file_path}")
+    return decode_image(data, file_path)
+
+
+def decode_image(data, source="uploaded file"):
+    """Decode image bytes (e.g. an upload) into RGB uint8 (or grayscale).
+
+    Same conversion as load_image. source is only used in the error message.
+    """
+    if not data:
+        raise ValueError(f"Could not load image: {source} is empty.")
+
+    image = cv2.imdecode(np.frombuffer(data, dtype=np.uint8), cv2.IMREAD_UNCHANGED)
+    if image is None:
+        raise ValueError(f"Could not load image: {source}")
 
     if image.ndim == 3 and image.shape[2] == 4:
         image = cv2.cvtColor(image, cv2.COLOR_BGRA2RGB)
@@ -65,7 +82,7 @@ def rgb_to_gray(img):
     """Return a grayscale uint8 image (0-255)."""
     if img.ndim == 2:
         return to_uint8(img)
-    gray = cv2.cvtColor(img.astype(np.float32), cv2.COLOR_RGB2GRAY)
+    gray = 0.299 * img[..., 0] + 0.587 * img[..., 1] + 0.114 * img[..., 2]
     return to_uint8(gray)
 
 

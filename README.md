@@ -25,17 +25,22 @@ reference only. Everything now lives in `services/`.
 CV_task1/
 ├── services/
 │   ├── __init__.py
-│   ├── image_io.py        shared helpers + the ONLY image loader
+│   ├── image_io.py        shared helpers + the ONLY image loader (path or upload bytes)
 │   ├── noise.py           Task 1
 │   ├── filters.py         Task 2
 │   ├── normalization.py   Task 6
 │   ├── edges.py           Task 3
-│   ├── histograms.py      Task 4 + Task 8 (in progress)
+│   ├── histograms.py      Task 4 + Task 8
 │   ├── equalization.py    Task 5
 │   └── frequency.py       Task 9 + Task 10
+├── api/
+│   └── main.py            REST backend (FastAPI): one endpoint per feature, see section 11
+├── tests/
+│   └── test_api.py        API tests (pytest)
+├── requirements.txt       pinned versions (numpy, opencv, fastapi, uvicorn, pytest, httpx)
 ├── CV task1 p1.py         old (reference)
 ├── cv task1 p2.py         old (reference)
-└── venv/                  Python environment (opencv-python, numpy)
+└── venv/                  Python environment
 ```
 
 **Dependency rule:** every service imports only from `image_io.py`. The single exception is
@@ -49,7 +54,7 @@ written once.
 ```bash
 # from CV_task1/
 venv\Scripts\activate            # Windows
-pip install opencv-python numpy  # only if venv is missing them
+pip install -r requirements.txt  # only if venv is missing them
 ```
 
 ```python
@@ -76,7 +81,7 @@ _, _, edges = compute_edge_magnitude(image, "canny", canny_low=50, canny_high=15
 | Final images | Returned as **uint8**. |
 | Signed / intermediate results | Returned as **float64** (edge gradients, high-pass output). Use `normalize_image` or `to_uint8` before displaying. |
 | No plotting in services | Services return arrays only. Plotting belongs to the UI. |
-| Gray conversion | `rgb_to_gray` always returns uint8 `(H, W)`. |
+| Gray conversion | `rgb_to_gray` always returns uint8 `(H, W)`, using our own formula `0.299R + 0.587G + 0.114B`. |
 
 ---
 
@@ -85,10 +90,11 @@ _, _, edges = compute_edge_magnitude(image, "canny", canny_low=50, canny_high=15
 | Function | Input | Output |
 |---|---|---|
 | `image_io.load_image(file_path)` | path | RGB or gray uint8 |
+| `image_io.decode_image(data, source)` | image bytes (e.g. an upload) | RGB or gray uint8, same as `load_image` |
 | `image_io.validate_image(image, allow_float=False)` | array | same array, or `ValueError` |
 | `image_io.validate_kernel_size(kernel_size)` | int | `ValueError` if not positive odd |
 | `image_io.to_uint8(img)` | any array | uint8, rounded and clipped to 0–255 |
-| `image_io.rgb_to_gray(img)` | RGB or gray | gray uint8 `(H, W)` |
+| `image_io.rgb_to_gray(img)` | RGB or gray | gray uint8 `(H, W)` (`0.299R + 0.587G + 0.114B`, from scratch) |
 | `image_io.resize_nearest(img, new_h, new_w)` | image + size (pixels) | resized image |
 | `image_io.pad_image(image, pad, mode="edge")` | image + pad (pixels) | padded image |
 | `image_io.convolve_image(image, kernel, clip=True)` | uint8 image + odd square kernel | `clip=True`: uint8 · `clip=False`: float64 signed |
@@ -103,6 +109,7 @@ _, _, edges = compute_edge_magnitude(image, "canny", canny_low=50, canny_high=15
 | `edges.compute_edge_magnitude(image, method, canny_low=100, canny_high=200)` | RGB/gray uint8 + `"sobel"`/`"prewitt"`/`"roberts"`/`"canny"` + Canny thresholds (gradient strength) | Sobel/Prewitt/Roberts: `(grad_x, grad_y, magnitude)` float64 · Canny: `(None, None, edges)` uint8 0/255 · all `(H, W)` |
 | `histograms.compute_histogram(gray_u8, levels)` | gray uint8 | counts per level (pixels), int64 |
 | `histograms.compute_distribution(gray_u8, levels=256)` | single-channel uint8 (gray or one R/G/B channel) | `(hist, pdf, cdf)`, each length `levels`: hist in pixels, pdf 0–1 (sums to 1), cdf 0–1 (ends at 1) |
+| `histograms.compute_rgb_distributions(image, levels=256)` | RGB uint8 `(H, W, 3)` | `{"R": (hist, pdf, cdf), "G": (...), "B": (...)}` |
 | `equalization.equalize_gray(gray, levels)` | gray image | `(equalized uint8, hist, cdf 0–1, mapping)` |
 | `equalization.equalize_color(img)` | RGB uint8 | RGB uint8 (Y channel equalized) |
 | `frequency.frequency_filters(img, cutoff)` | image + cutoff (frequency samples) | `(spectrum, lp_mask, hp_mask, lp, hp)` float64 |
@@ -121,10 +128,11 @@ _, _, edges = compute_edge_magnitude(image, "canny", canny_low=50, canny_high=15
 | 4 Histogram + distribution curve | Person 2 | ✅ Done (`compute_distribution`) |
 | 5 Equalization | Person 3 | ✅ Done (moved) |
 | 6 Normalization | Person 1 | ✅ Done (now also accepts float) |
-| 8 RGB → gray + R/G/B histograms + CDF | Person 2 | ⚪ Not started |
+| 8 RGB → gray + R/G/B histograms + CDF | Person 2 | ✅ Done (`rgb_to_gray`, `compute_rgb_distributions`) |
 | 9 Frequency filters | Person 3 | ✅ Done (moved, plotting removed) |
 | 10 Hybrid images | Person 3 | ✅ Done (moved, plotting removed) |
-| UI + report | All | ⚪ Not started |
+| Backend API (one endpoint per task, with options) | All | ✅ Done (section 11) |
+| Frontend (UI) + report | All | ⚪ Not started |
 
 ---
 
@@ -275,6 +283,67 @@ hist, pdf, cdf = compute_distribution(rgb_to_gray(load_image("photo.jpg")))
 
 ---
 
+## 7c. Task 8 — RGB → gray and R, G, B histograms with CDF (ticket)
+
+**Status:** ✅ Done. The service returns the data; drawing belongs to the UI.
+
+### How it is implemented
+1. **Gray conversion (from scratch):** `rgb_to_gray` computes `gray = 0.299·R + 0.587·G + 0.114·B`
+   (replaced the `cv2.cvtColor` call), then `to_uint8`. Green has the biggest weight because the eye is
+   most sensitive to it. The weights add up to 1, so white stays 255. Edges, frequency filters and
+   histograms all use this one function.
+2. **Per-channel distributions:** `compute_rgb_distributions(image)`:
+   validate → check 3 channels → for each of R, G, B call `compute_distribution(image[..., c])` →
+   return a dict `{"R": (hist, pdf, cdf), "G": ..., "B": ...}`.
+3. No new histogram math: the per-channel loop reuses Task 4's `compute_distribution`.
+4. The CDF is the cumulative curve used for mapping in histogram equalization (`equalize_gray` uses the same function).
+
+**Usage:**
+```python
+from services.image_io import load_image, rgb_to_gray
+from services.histograms import compute_distribution, compute_rgb_distributions
+
+image = load_image("photo.jpg")
+gray = rgb_to_gray(image)                         # gray image
+gray_hist, gray_pdf, gray_cdf = compute_distribution(gray)
+channels = compute_rgb_distributions(image)       # channels["R"] -> (hist, pdf, cdf)
+```
+
+### Design decisions
+
+| Decision | Chosen | Why |
+|---|---|---|
+| Gray formula location | Inside `rgb_to_gray` (same name) | One gray function for the whole project |
+| Y in `equalization.rgb_to_ycbcr` | Left as is | Y must stay float for the YCbCr round trip; only one line repeats |
+| Output type | Dict by channel name | Clear (`result["R"]`), readable many times, maps directly to JSON for a future backend |
+| Not a generator (`yield`) | — | Only 3 small items; a generator can be read only once, and `yield` in a function turns every `return` into "stop" (this broke the gray path during development) |
+| Not a class | — | The services are pure calculations (input → output, no state); a tuple already names the results |
+| Two functions, not one with optional parameters | — | One function per job; the earlier one-function version also broke `equalize_gray` (positional arguments shifted) |
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `services/image_io.py` | `rgb_to_gray` uses `0.299R + 0.587G + 0.114B` instead of `cv2.cvtColor` |
+| `services/histograms.py` | New `compute_rgb_distributions` |
+
+### Tests done (venv Python)
+
+| Test | Expected | Result |
+|---|---|---|
+| `rgb_to_gray` vs `cv2.cvtColor`, 200×300 random image | ≤ 1 gray level difference | ✅ max 1 gray level, on 0.12% of pixels (rounding) |
+| White / black / red / green / blue | 255 / 0 / 76 / 150 / 29 | ✅ |
+| Pure red 4×5 image | R: 20 pixels at 255 · G, B: 20 pixels at 0 | ✅ |
+| Each channel, 64×80 random image | hist sums to 5120 pixels, cdf ends at 1, same as `cv2.calcHist` | ✅ R, G, B |
+| Result read twice | same values | ✅ |
+| Gray or float input | `ValueError` | ✅ |
+| `equalize_gray`, `equalize_color`, Sobel edges after the gray change | still work | ✅ |
+
+### Still open
+- None for the service. The plotting is part of the UI work.
+
+---
+
 ## 8. Changes made while combining (teammates, please read)
 
 | Change | Why | Affects |
@@ -283,6 +352,7 @@ hist, pdf, cdf = compute_distribution(rgb_to_gray(load_image("photo.jpg")))
 | `_validate_image`, `_validate_kernel_size`, `_pad_image`, `_convolve_image` renamed **without `_`** | They are imported by other files, so they are no longer private | Person 1: update any calls that use the old names |
 | `convolve_image(..., clip=True)` | Edges need signed values, not clipped | Filters unchanged (they use the default) |
 | `rgb_to_gray` always returns **uint8** | One output type; ready for convolution | `frequency.py` (less than 1 gray-level difference) |
+| `rgb_to_gray` uses our own formula `0.299R + 0.587G + 0.114B` instead of `cv2.cvtColor` | Task 8 asks for the conversion from scratch | Everyone: at most 1 gray-level difference from before |
 | `validate_image(..., allow_float=False)` and `normalize_image` accepts float | Reuse normalization to display edge gradients | Person 1: uint8 behavior unchanged |
 | Removed the plotting functions `img_equalization_histogram`, `task10_hybrid` and the Colab demo code | Services return arrays only, and the demo crashed (`hybrid_photo` was not defined) | Person 3: the math is kept in `equalize_gray`, `equalize_color`, `frequency_filters`, `make_hybrid` |
 | `frequency_filters` returns arrays instead of plotting | Same reason | Person 3 |
@@ -410,7 +480,123 @@ longer than 256 bins. `rgb_to_gray` always returns uint8, so this is safe.
 
 1. Task 3: done (optional items in section 7).
 2. Task 4: done (`compute_distribution`).
-3. Task 8: own gray formula `0.299R + 0.587G + 0.114B` (replacing the OpenCV call in `rgb_to_gray`), and a per-channel histogram + CDF loop.
+3. Task 8: done (`rgb_to_gray` own formula, `compute_rgb_distributions`).
 4. ~~`compute_histogram` is slow~~ fixed with `np.bincount` (see 9.9).
 5. Decide whether to delete `CV task1 p1.py` and `cv task1 p2.py`.
 6. UI and final report.
+7. API: confirm the framework choice (FastAPI) and the response format (section 11).
+8. API: Task 7 is not in the task list. Tell us if it needs an endpoint.
+9. API: `levels` (histogram / equalization) is not exposed. Levels below 256 cut off counts silently, so it is left out until we decide.
+
+---
+
+## 11. Backend API (one endpoint per feature)
+
+**Status:** ✅ Done for every implemented task. The frontend will call these endpoints.
+
+### How it is implemented
+1. `api/main.py` is one FastAPI app. Each endpoint reads the uploaded image(s), calls the service
+   function with the same option names and defaults, and returns JSON.
+2. **Input:** multipart form. The image is an uploaded file. Options are form fields, with the same
+   names as the service function parameters.
+3. **Output:** JSON. Every image is a **base64 PNG** string, so the frontend can show it with
+   `<img src="data:image/png;base64,...">`. Histograms and curves are lists of numbers.
+4. **Display rule:** uint8 results are sent as they are. Float results (gradients, masks, high-pass,
+   spectrum) are min-max normalized with `normalize_image` first, as section 4 of the README says.
+   Hybrid is clipped with `to_uint8`, because it is a valid image.
+5. **Errors:** one exception handler turns every `ValueError` from a service (bad option, bad image,
+   empty file) into HTTP **400** with `{"detail": "..."}`. Bad types or out-of-range values that
+   FastAPI checks (e.g. unknown `method`, `pyramid_levels` 0 or 9) return HTTP **422**.
+6. **Interactive docs:** run the server and open `/docs`. It lists every endpoint and option.
+
+### Run it
+```bash
+# from CV_task1/
+venv\Scripts\activate
+uvicorn api.main:app --reload        # http://127.0.0.1:8000/docs
+python -m pytest tests               # run the tests
+```
+
+### Endpoints
+
+| Task | Method + path | Options (form field: default) | Response (JSON) |
+|---|---|---|---|
+| 1 Uniform noise | `POST /api/noise/uniform` | `amount`: 25 (gray levels, 0–255) · `seed`: none | `image` |
+| 1 Gaussian noise | `POST /api/noise/gaussian` | `mean`: 0.0 · `sigma`: 20.0 (gray levels) · `seed`: none | `image` |
+| 1 Salt & pepper | `POST /api/noise/salt-pepper` | `amount`: 0.04 (fraction 0–1) · `salt_vs_pepper`: 0.5 (fraction 0–1) · `seed`: none | `image` |
+| 2 Average | `POST /api/filters/average` | `kernel_size`: 3 (odd, pixels) | `image` |
+| 2 Gaussian | `POST /api/filters/gaussian` | `kernel_size`: 3 (odd) · `sigma`: 0.0 (pixels, 0 = automatic) | `image` |
+| 2 Median | `POST /api/filters/median` | `kernel_size`: 3 (odd) | `image` |
+| 3 Edges | `POST /api/edges` | `method`: sobel (or prewitt, roberts, canny) · `canny_low`: 100 · `canny_high`: 200 (Canny only) | `grad_x`, `grad_y` (null for canny), `result` (final edges) |
+| 4 Histogram | `POST /api/histogram` | none | `hist` (pixels), `pdf` (0–1), `cdf` (0–1), 256 values each |
+| 5 Equalization (gray) | `POST /api/equalization/gray` | none | `image`, `hist` and `cdf` **before** equalization |
+| 5 Equalization (color) | `POST /api/equalization/color` | none | `image` |
+| 6 Normalization | `POST /api/normalization` | `new_min`: 0 · `new_max`: 255 (0–255) | `image` |
+| 8 RGB → gray | `POST /api/rgb/gray` | none | `image` |
+| 8 R, G, B histograms | `POST /api/rgb/histograms` | none | `{"R": {hist, pdf, cdf}, "G": {...}, "B": {...}}` |
+| 9 Frequency filters | `POST /api/frequency/filters` | `cutoff`: 30 (frequency samples) | `spectrum`, `lp_mask`, `hp_mask`, `lp`, `hp` |
+| 10 Hybrid | `POST /api/hybrid` | `img_far`, `img_near` (2 uploads) · `cutoff_low`: 15 · `cutoff_high`: 25 · `pyramid_levels`: 4 (1–8) | `low`, `high`, `hybrid`, `pyramid` (list, each level half the size) |
+
+**Units:** sizes in pixels, gray levels 0–255, fractions 0–1, histogram counts in pixels, `pdf` and `cdf` 0–1.
+
+### Example (Python)
+```python
+import requests
+
+with open("photo.jpg", "rb") as f:
+    r = requests.post("http://127.0.0.1:8000/api/noise/gaussian",
+                      files={"image": f}, data={"sigma": 15, "seed": 1})
+png_base64 = r.json()["image"]        # show with <img src="data:image/png;base64,...">
+```
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `api/main.py` | New: FastAPI app, 15 endpoints (one or more per task), shared helpers `read_image`, `encode_png`, `to_display`, `display_png`, `distribution_json` |
+| `services/image_io.py` | `load_image` now reads the file bytes and calls the new `decode_image(data, source)`. The conversion (BGR → RGB) exists once, so the upload path and the file path behave the same. Same behavior for the existing callers |
+| `tests/test_api.py` | New: 25 tests |
+| `requirements.txt` | New: pinned versions for reproducible setup |
+
+### Tests done (`python -m pytest tests`, Python 3.14)
+
+| Test | Expected | Result |
+|---|---|---|
+| Every image endpoint with default options (11 endpoints) | 200, output PNG has the same H×W as the input | ✅ 11 passed |
+| Histogram | 256 bins, counts sum to H×W, cdf ends at 1 | ✅ |
+| R, G, B histograms | keys `R`, `G`, `B` | ✅ |
+| Gray equalization | image + 256-value hist and cdf | ✅ |
+| Hybrid | pyramid has the requested levels, near image is resized, level 2 is half size | ✅ |
+| Same seed | same output; different seed → different output | ✅ |
+| Canny | `grad_x`/`grad_y` null, `result` only 0/255 | ✅ |
+| Sobel | both gradients returned | ✅ |
+| Unknown edge method | 422 | ✅ |
+| Frequency | 5 images returned | ✅ |
+| Even kernel size | 400, message says "odd" | ✅ |
+| Canny low ≥ high | 400 | ✅ |
+| Non-image and empty upload | 400 | ✅ |
+| Pyramid levels 0 and 9 | 422 | ✅ |
+| `load_image` on a real PNG | RGB uint8, R channel kept | ✅ |
+| `load_image` on a missing file, empty path | `ValueError` | ✅ |
+| uvicorn start, `/docs` and `/openapi.json` | 200, all 15 routes listed | ✅ |
+
+Note: pytest prints a deprecation warning from FastAPI's TestClient (it asks for `httpx2`). It does
+not affect the results.
+
+### Design decisions (for review)
+
+| Decision | Chosen | Simpler alternative / over-engineering |
+|---|---|---|
+| Framework | **FastAPI**: typed options, automatic `/docs`, small | Flask is also small but needs manual validation and docs. Django is over-engineering for this |
+| One endpoint per task | Yes, as asked | A single generic endpoint with a `task` field would hide the options from the docs |
+| Image format | Base64 PNG inside JSON | Raw PNG bytes would be smaller but need a different response per endpoint, and the lists (histograms) need JSON anyway |
+| Input | Multipart upload | Sending a file path would only work on this machine |
+| Business logic | Stays in `services/`; `api/` only converts input and output | Putting logic in the API would duplicate the services |
+| Persistence | None (stateless) | A database or job queue is not needed for single-image calls |
+| Endpoint type | Plain `def`: FastAPI runs it in a worker thread, so a slow filter does not block other requests | `async def` runs the NumPy/OpenCV work on the event loop, so one request blocks all others. For more CPU cores, start several processes: `uvicorn api.main:app --workers 4` (each process uses its own memory) |
+
+### Still open
+- Confirm FastAPI (decision above). Changing it would only touch `api/main.py`.
+- Task 7 endpoint (not in the task list, see section 10).
+- `levels` option for histogram and equalization (see section 10).
+- Auth, file size limits, and CORS are not set up. Needed only when the frontend runs on another origin or the API is public. Tell us if we need CORS for the frontend.

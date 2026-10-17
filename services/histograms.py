@@ -33,3 +33,17 @@ def compute_distribution(gray_u8, levels=256):
     pdf = hist / gray_u8.size
     cdf = np.cumsum(pdf)
     return hist, pdf, cdf
+
+
+def compute_rgb_distributions(image, levels=256):
+    """
+    Histogram, PDF and CDF of each channel of an RGB uint8 image.
+
+    Returns {"R": (hist, pdf, cdf), "G": (...), "B": (...)}.
+    """
+    image = validate_image(image)
+    if image.ndim != 3 or image.shape[2] != 3:
+        raise ValueError("Expected a 3-channel RGB image.")
+
+    return {name: compute_distribution(image[..., c], levels)
+            for name, c in zip("RGB", range(3))}
