@@ -37,13 +37,16 @@ def load_image(file_path):
     return validate_image(image)
 
 
-def validate_image(image):
+def validate_image(image, allow_float=False):
+    """allow_float=True also accepts float arrays (e.g. raw edge gradients)."""
     if image is None or not isinstance(image, np.ndarray) or image.size == 0:
         raise ValueError("Please provide a valid, non-empty image.")
     if image.ndim not in (2, 3):
         raise ValueError("Expected a grayscale or color image.")
     if image.ndim == 3 and image.shape[2] not in (3, 4):
         raise ValueError("Expected a grayscale, RGB, or RGBA image.")
+    if allow_float and np.issubdtype(image.dtype, np.floating):
+        return image
     if image.dtype != np.uint8:
         raise ValueError("Expected an 8-bit image (uint8), as returned by load_image.")
     return image
