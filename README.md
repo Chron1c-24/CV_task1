@@ -102,6 +102,7 @@ _, _, edges = compute_edge_magnitude(image, "canny", canny_low=50, canny_high=15
 | `edges.EDGE_KERNELS` | — | `{method: (kernel_x, kernel_y)}`, 3×3 float32 |
 | `edges.compute_edge_magnitude(image, method, canny_low=100, canny_high=200)` | RGB/gray uint8 + `"sobel"`/`"prewitt"`/`"roberts"`/`"canny"` + Canny thresholds (gradient strength) | Sobel/Prewitt/Roberts: `(grad_x, grad_y, magnitude)` float64 · Canny: `(None, None, edges)` uint8 0/255 · all `(H, W)` |
 | `histograms.compute_histogram(gray_u8, levels)` | gray uint8 | counts per level (pixels), int64 |
+| `histograms.compute_distribution(gray_u8, levels=256)` | single-channel uint8 (gray or one R/G/B channel) | `(hist, pdf, cdf)`, each length `levels`: hist in pixels, pdf 0–1 (sums to 1), cdf 0–1 (ends at 1) |
 | `equalization.equalize_gray(gray, levels)` | gray image | `(equalized uint8, hist, cdf 0–1, mapping)` |
 | `equalization.equalize_color(img)` | RGB uint8 | RGB uint8 (Y channel equalized) |
 | `frequency.frequency_filters(img, cutoff)` | image + cutoff (frequency samples) | `(spectrum, lp_mask, hp_mask, lp, hp)` float64 |
@@ -117,7 +118,7 @@ _, _, edges = compute_edge_magnitude(image, "canny", canny_low=50, canny_high=15
 | 1 Noise | Person 1 | ✅ Done (moved to `services/`) |
 | 2 Spatial filters | Person 1 | ✅ Done (moved) |
 | 3 Edge detection | Person 2 | ✅ Done (Sobel, Prewitt, Roberts, Canny) |
-| 4 Histogram + distribution curve | Person 2 | ⚪ Not started (`compute_histogram` exists) |
+| 4 Histogram + distribution curve | Person 2 | ✅ Done (`compute_distribution`) |
 | 5 Equalization | Person 3 | ✅ Done (moved) |
 | 6 Normalization | Person 1 | ✅ Done (now also accepts float) |
 | 8 RGB → gray + R/G/B histograms + CDF | Person 2 | ⚪ Not started |
@@ -222,6 +223,58 @@ strong edge.
 
 ---
 
+## 7b. Task 4 — Histogram and distribution curve (ticket)
+
+**Status:** ✅ Done. The service returns the data; drawing (bars + curves) belongs to the UI.
+
+### How it is implemented
+1. `compute_histogram(gray_u8, levels=256)` counts pixels per gray level with
+   `np.bincount(gray_u8.ravel(), minlength=levels)[:levels]` (see 9.9). From scratch, no `cv2.calcHist`.
+2. `compute_distribution(gray_u8, levels=256)`:
+   validate (uint8, **single channel**) → `hist = compute_histogram(...)` → `pdf = hist / N` → `cdf = cumsum(pdf)` → return `(hist, pdf, cdf)`.
+3. The "distribution curve" is returned in **both** forms: PDF (probability per level) and CDF (cumulative).
+4. It takes **one channel**, so Task 8 can reuse it for R, G and B, and `equalize_gray` (Task 5) reuses it too. The PDF/CDF math exists once.
+
+**Usage:**
+```python
+from services.image_io import load_image, rgb_to_gray
+from services.histograms import compute_distribution
+
+hist, pdf, cdf = compute_distribution(rgb_to_gray(load_image("photo.jpg")))
+# UI: bar(range(256), hist) · plot(pdf) · plot(cdf)
+```
+
+| Output | Meaning | Unit / range |
+|---|---|---|
+| `hist[k]` | Number of pixels with gray level k | pixels (count), int64 |
+| `pdf[k]` | Probability of gray level k | 0–1, sums to 1 |
+| `cdf[k]` | Probability of a gray level ≤ k | 0–1, never decreases, ends at 1 |
+
+### Files changed
+
+| File | Change |
+|---|---|
+| `services/histograms.py` | `compute_histogram` uses `np.bincount` (was a per-pixel loop) · new `compute_distribution` |
+| `services/equalization.py` | `equalize_gray` calls `compute_distribution` instead of computing pdf/cdf itself (same output) |
+
+### Tests done (venv Python)
+
+| Test | Expected | Result |
+|---|---|---|
+| Paper example `[[0,0],[1,3]]`, 4 levels | hist `[2,1,0,1]`, pdf `[.5,.25,0,.25]`, cdf `[.5,.75,.75,1]` | ✅ |
+| 64×80 random image | hist sums to 5120 pixels, pdf sums to 1, cdf ends at 1 and never decreases | ✅ |
+| vs `np.histogram` and `cv2.calcHist` | identical counts | ✅ both |
+| Dark image (only levels 0 and 5) | still 256 bins | ✅ |
+| RGB (3-channel) input | `ValueError` (pass one channel) | ✅ |
+| Float input | `ValueError` | ✅ |
+| `equalize_gray` / `equalize_color` after the change | still work, hist sums to N, cdf ends at 1 | ✅ |
+| Speed, 1000×1000 image | faster than the loop | ✅ 4.2 ms vs 411.9 ms |
+
+### Still open
+- None for the service. The plotting is part of the UI work.
+
+---
+
 ## 8. Changes made while combining (teammates, please read)
 
 | Change | Why | Affects |
@@ -233,6 +286,7 @@ strong edge.
 | `validate_image(..., allow_float=False)` and `normalize_image` accepts float | Reuse normalization to display edge gradients | Person 1: uint8 behavior unchanged |
 | Removed the plotting functions `img_equalization_histogram`, `task10_hybrid` and the Colab demo code | Services return arrays only, and the demo crashed (`hybrid_photo` was not defined) | Person 3: the math is kept in `equalize_gray`, `equalize_color`, `frequency_filters`, `make_hybrid` |
 | `frequency_filters` returns arrays instead of plotting | Same reason | Person 3 |
+| `equalize_gray` calls `compute_distribution` (histograms.py) instead of computing pdf/cdf inline, and `compute_histogram` now uses `np.bincount` | PDF/CDF math exists once; counting is ~99× faster | Person 3: same outputs |
 | **Bug fix:** `gaussian_pyramid_view` converts to float first | With uint8 input, adding 4 pixels went past 255 and wrapped around | Person 3 |
 | Comment fix in `apply_median_filter`: window axes are `(h, w, channels, ky, kx)` | The old comment had the wrong order (the code was correct) | Person 1 |
 
@@ -325,13 +379,38 @@ Same image, other settings (thresholds 50, 150):
 | `L2gradient=True` | 713 | L2 strength is smaller, so fewer pixels pass the same thresholds |
 | 5×5 Gaussian blur first | 216 | Blurring removes most noise edges; this was the biggest effect of the three |
 
+### 9.9 Fast histogram counting (`np.bincount`)
+`compute_histogram` used to count with a Python loop (`for v in gray_u8.ravel(): hist[v] += 1`),
+which runs Python code once per pixel. It now does the same count in one NumPy call:
+
+```python
+hist = np.bincount(gray_u8.ravel(), minlength=levels)
+```
+
+| Part | Meaning |
+|---|---|
+| `gray_u8.ravel()` | Flattens the image into one long list of pixel values |
+| `np.bincount(...)` | Counts how many times each value appears: `hist[v]` = count of v |
+| `minlength=levels` | Makes sure the result has all 256 bins, even if the brightest values never appear |
+
+Measured on a 1000×1000 gray image:
+
+| Method | Time (milliseconds) |
+|---|---|
+| Python loop | 411.9 |
+| `np.bincount` | 4.2 |
+
+**Conclusion:** about **99× faster**, with an **identical** result. It is still from scratch (counting
+values, no `cv2.calcHist`). The input must be uint8 (0–255): a larger value would make the result
+longer than 256 bins. `rgb_to_gray` always returns uint8, so this is safe.
+
 ---
 
 ## 10. Open items
 
 1. Task 3: done (optional items in section 7).
-2. Task 4: PDF / CDF function (one function, reused by equalization and Task 8).
+2. Task 4: done (`compute_distribution`).
 3. Task 8: own gray formula `0.299R + 0.587G + 0.114B` (replacing the OpenCV call in `rgb_to_gray`), and a per-channel histogram + CDF loop.
-4. `compute_histogram` loops over every pixel in Python, which is slow on large images.
+4. ~~`compute_histogram` is slow~~ fixed with `np.bincount` (see 9.9).
 5. Decide whether to delete `CV task1 p1.py` and `cv task1 p2.py`.
 6. UI and final report.

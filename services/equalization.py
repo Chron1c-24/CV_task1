@@ -5,7 +5,7 @@ Task 5 - Histogram equalization (grayscale, and color through the Y channel).
 import numpy as np
 
 from .image_io import to_uint8
-from .histograms import compute_histogram
+from .histograms import compute_distribution
 
 
 def equalize_gray(gray, levels=256):
@@ -16,10 +16,7 @@ def equalize_gray(gray, levels=256):
         s_k    = round( (cdf(k) - cdf_min) / (1 - cdf_min) * (L-1) )
     """
     g = to_uint8(gray)
-    hist = compute_histogram(g, levels)
-    n = g.size
-    pdf = hist / n
-    cdf = np.cumsum(pdf)
+    hist, pdf, cdf = compute_distribution(g, levels)
     cdf_min = cdf[hist > 0].min()              # first non-empty bin
     mapping = np.round((cdf - cdf_min) / (1.0 - cdf_min + 1e-12) * (levels - 1))
     mapping = np.clip(mapping, 0, levels - 1).astype(np.uint8)
