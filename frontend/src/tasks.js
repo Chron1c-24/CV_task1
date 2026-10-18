@@ -156,9 +156,12 @@ const RAW_TASKS = [
     endpoint: "/api/frequency/filters",
     description: "Ideal filters in the DFT domain. Cutoff is a radius from the spectrum centre.",
     options: [
+      { name: "filter_type", label: "Filter", type: "select", default: "low-pass", choices: ["low-pass", "high-pass"] },
       { name: "cutoff", label: "Cutoff", type: "float", default: 30, min: 0, step: 1, unit: "frequency samples" },
     ],
-    result: { key: "lp", label: "Low-pass" },
+    result: (v) => v.filter_type === "high-pass"
+      ? { key: "hp", label: "High-pass" }
+      : { key: "lp", label: "Low-pass" },
     outputs: [
       { type: "image", key: "hp", label: "High-pass" },
       { type: "image", key: "spectrum", label: "Spectrum (log magnitude)" },
@@ -229,4 +232,7 @@ export const COMPARE = {
 
 export function defaultValues(task, fixed = {}) {
   return { ...Object.fromEntries(task.options.map((option) => [option.name, option.default])), ...fixed };
+}
+export function resultFor(task, values) {
+  return typeof task.result === "function" ? task.result(values) : task.result;
 }

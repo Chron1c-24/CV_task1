@@ -55,8 +55,8 @@ def frequency_filters(img, cutoff=30):
 
     lp_mask = lowpass_mask(gray.shape, cutoff, "ideal")
     hp_mask = highpass_mask(gray.shape, cutoff, "ideal")
-    lp = apply_freq_filter(gray, lp_mask)
-    hp = apply_freq_filter(gray, hp_mask)
+    lp = np.dstack([apply_freq_filter(img[..., c], lp_mask) for c in range(3)])
+    hp = np.dstack([apply_freq_filter(img[..., c], hp_mask) for c in range(3)])
     return spectrum, lp_mask, hp_mask, lp, hp
 
 

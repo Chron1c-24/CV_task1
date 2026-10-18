@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { runTaskSafe, toSrc } from "../api.js";
-import { defaultValues } from "../tasks.js";
+import { defaultValues, resultFor } from "../tasks.js";
 import BeforeAfter from "../components/BeforeAfter.jsx";
 import ImageCard from "../components/ImageCard.jsx";
 import OptionsForm from "../components/OptionsForm.jsx";
@@ -15,7 +15,8 @@ export default function TaskView({ task, images, urls, beforeSrc, onUseAsInput }
   useEffect(() => setRun({ response: null, error: "" }), [images]); // new input -> old result is stale
 
   const ready = task.inputs.every((_, i) => images[i]);
-  const resultPng = task.result && run.response?.[task.result.key];
+  const result = resultFor(task, values);
+  const resultPng = result && run.response?.[result.key];
 
   async function apply() {
     setLoading(true);
@@ -45,8 +46,8 @@ export default function TaskView({ task, images, urls, beforeSrc, onUseAsInput }
       </section>
 
       {/* For tasks with a direct result (noise, filters, edges, equalization, normalization, etc.) */}
-      {task.result && beforeSrc && (
-        <BeforeAfter before={beforeSrc} after={resultPng && toSrc(resultPng)} afterLabel={task.result.label} />
+      {result && beforeSrc && (
+        <BeforeAfter before={beforeSrc} after={resultPng && toSrc(resultPng)} afterLabel={result.label} />
       )}
 
       {/* For single-input tasks without a single result (Task 4 Histogram, Task 8 RGB histograms) */}
