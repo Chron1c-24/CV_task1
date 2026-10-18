@@ -27,7 +27,7 @@ from services.edges import compute_edge_magnitude
 from services.histograms import compute_distribution, compute_rgb_distributions
 from services.equalization import equalize_gray, equalize_color
 from services.normalization import normalize_image
-from services.frequency import frequency_filters, make_hybrid, gaussian_pyramid_view
+from services.frequency import frequency_filters, make_hybrid
 
 
 app = FastAPI(title="CV_task1 API", version="1.0.0")
@@ -251,13 +251,11 @@ def hybrid(
     img_near: UploadFile = File(...),
     cutoff_low: float = Form(15),
     cutoff_high: float = Form(25),
-    pyramid_levels: int = Form(4, ge=1, le=8),
 ):
     """
     hybrid = low-pass(img_far, cutoff_low) + high-pass(img_near, cutoff_high).
-    img_near is resized to img_far's size. pyramid_levels: how many images in pyramid
-    (level 1 = full hybrid, each next level is half the size).
-    Response: low, high (display-normalized), hybrid (clipped to 0-255), pyramid (list of PNGs).
+    img_near is resized to img_far's size.
+    Response: low, high (display-normalized), hybrid (clipped to 0-255).
     """
     low, high, combined, _ = make_hybrid(
         read_image(img_far),
@@ -265,10 +263,8 @@ def hybrid(
         cutoff_low=cutoff_low,
         cutoff_high=cutoff_high,
     )
-    levels = gaussian_pyramid_view(combined, levels=pyramid_levels)
     return {
         "low": display_png(low),
         "high": display_png(high),
         "hybrid": encode_png(to_uint8(combined)),
-        "pyramid": [encode_png(to_uint8(level)) for level in levels],
     }

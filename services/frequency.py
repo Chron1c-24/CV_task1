@@ -84,15 +84,3 @@ def make_hybrid(img_far, img_near, cutoff_low=15, cutoff_high=25):
     hybrid = low + high
     return low, high, hybrid, img_near
 
-
-def gaussian_pyramid_view(img, levels=4):
-    """Shrinks the hybrid by half each step (simulates viewing distance)."""
-    out = [img]
-    cur = img.astype(np.float64)                    # avoid uint8 overflow in the sum below
-    for _ in range(levels - 1):
-        # blur with a simple 2x2 box average then downsample (from scratch)
-        h, w = (cur.shape[0] // 2) * 2, (cur.shape[1] // 2) * 2
-        c = cur[:h, :w]
-        cur = (c[0::2, 0::2] + c[1::2, 0::2] + c[0::2, 1::2] + c[1::2, 1::2]) / 4.0
-        out.append(cur)
-    return out

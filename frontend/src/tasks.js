@@ -180,14 +180,12 @@ const RAW_TASKS = [
     options: [
       { name: "cutoff_low", label: "Cutoff low", type: "float", default: 15, min: 0, step: 1, unit: "frequency samples, far image" },
       { name: "cutoff_high", label: "Cutoff high", type: "float", default: 25, min: 0, step: 1, unit: "frequency samples, near image" },
-      { name: "pyramid_levels", label: "Pyramid levels", type: "int", default: 4, min: 1, max: 8, unit: "1-8, each level half the size" },
     ],
     result: null,
     outputs: [
       { type: "image", key: "hybrid", label: "Hybrid" },
       { type: "image", key: "low", label: "Low-pass (far)" },
       { type: "image", key: "high", label: "High-pass (near)" },
-      { type: "imageList", key: "pyramid", label: "Pyramid level" },
     ],
   },
 ];

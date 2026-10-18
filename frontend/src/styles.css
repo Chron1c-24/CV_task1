@@ -278,8 +278,8 @@ select, input[type="number"] {
 .upload { display: grid; gap: 6px; font-weight: 600; font-size: 0.9rem; }
 .upload img, .upload .placeholder { width: 160px; height: 110px; object-fit: contain; border-radius: 6px; background: var(--bg); }
 
-.grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
-.grid.two { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.grid.two { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
 .grid.compare {
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   align-items: start;
