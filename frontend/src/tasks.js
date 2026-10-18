@@ -105,10 +105,6 @@ const RAW_TASKS = [
     description: "Equalizes the gray image. Charts show the histogram and CDF BEFORE equalization.",
     options: [],
     result: { key: "image", label: "Equalized" },
-    outputs: [
-      { type: "chart", label: "Histogram (before)", unit: "pixels", mode: "bar", series: [{ path: "hist", color: GRAY }] },
-      { type: "chart", label: "CDF (before)", unit: "0-1", mode: "line", series: [{ path: "cdf", color: GRAY }] },
-    ],
   },
   {
     id: "equalization-color", group: "Equalization", label: "Equalization (color)",
@@ -144,10 +140,7 @@ const RAW_TASKS = [
     description: "Histogram and CDF of each colour channel. Needs an RGB image.",
     options: [],
     result: null,
-    outputs: [
-      { type: "chart", label: "Histogram R, G, B", unit: "pixels", mode: "line", series: rgbSeries("hist") },
-      { type: "chart", label: "CDF R, G, B", unit: "0-1", mode: "line", series: rgbSeries("cdf") },
-    ],
+    outputs: [],
   },
 
   // ---------- Task 9: frequency-domain filters ----------

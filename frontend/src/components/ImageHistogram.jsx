@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { computeHistogramFromSrc, computeStatDelta } from "../utils/histogram.js";
+import { niceTicks, useXZoom } from "../utils/useXZoom.js";
 
 const W = 320;
 const H = 120;
@@ -33,7 +34,8 @@ export default function ImageHistogram({
   const [showPdf, setShowPdf] = useState(false);
   const [overlayBaseline, setOverlayBaseline] = useState(false);
   const [hoverBin, setHoverBin] = useState(null);
-  const svgRef = useRef(null);
+  const zoom = useXZoom({ fullMax: 255, plotLeft: PAD.left, plotW: PLOT_W, viewW: W });
+  const { svgRef, lo, hi } = zoom;
 
   const loadHistogram = () => {
     if (!src) {
@@ -81,18 +83,18 @@ export default function ImageHistogram({
   // Compute maximum bin value for scaling Y axis
   const maxBin = useMemo(() => {
     if (!data) return 1;
+    const from = Math.max(0, Math.floor(lo));
+    const to = Math.min(255, Math.ceil(hi)) + 1;
+    const peak = (arr) => Math.max(...Array.from(arr).slice(from, to), 1);
     if (activeChannel === "rgb") {
-      const maxR = Math.max(...data.channels.r);
-      const maxG = Math.max(...data.channels.g);
-      const maxB = Math.max(...data.channels.b);
-      return Math.max(maxR, maxG, maxB, 1);
+      return Math.max(peak(data.channels.r), peak(data.channels.g), peak(data.channels.b));
     }
-    const target = data.channels[activeChannel] || data.channels.gray;
-    return Math.max(...target, 1);
-  }, [data, activeChannel]);
+    return peak(data.channels[activeChannel] || data.channels.gray);
+  }, [data, activeChannel, lo, hi]);
+
 
   // Scaling helpers
-  const getX = (bin) => PAD.left + (bin * PLOT_W) / 255;
+  const getX = (bin) => PAD.left + ((bin - lo) / (hi - lo)) * PLOT_W;
   const getY = (val) => PAD.top + PLOT_H * (1 - Math.min(val, maxBin) / maxBin);
 
   // Generate SVG path for a 256-bin series
@@ -117,12 +119,9 @@ export default function ImageHistogram({
 
   // Mouse interaction for tooltip
   const handleMouseMove = (e) => {
-    if (!svgRef.current) return;
-    const rect = svgRef.current.getBoundingClientRect();
-    const mouseX = e.clientX - rect.left;
-    const relX = (mouseX / rect.width) * W;
-    const bin = Math.round(((relX - PAD.left) / PLOT_W) * 255);
-    if (bin >= 0 && bin <= 255) {
+    if (zoom.dragMove(e)) return; // panning
+    const bin = Math.round(zoom.binAt(e.clientX));
+    if (bin >= 0 && bin <= 255 && bin >= lo && bin <= hi) {
       setHoverBin(bin);
     } else {
       setHoverBin(null);
@@ -130,6 +129,7 @@ export default function ImageHistogram({
   };
 
   const handleMouseLeave = () => {
+    zoom.endDrag();
     setHoverBin(null);
   };
 
@@ -249,6 +249,10 @@ export default function ImageHistogram({
           className="hist-svg"
           onMouseMove={handleMouseMove}
           onMouseLeave={handleMouseLeave}
+          onMouseDown={zoom.onMouseDown}
+          onMouseUp={zoom.endDrag}
+          onDoubleClick={zoom.reset}
+          style={{ cursor: zoom.zoomed ? "grab" : "default" }}
         >
           <defs>
             <linearGradient id="histGrayGrad" x1="0" y1="0" x2="0" y2="1">
@@ -269,6 +273,10 @@ export default function ImageHistogram({
             </linearGradient>
           </defs>
 
+          <clipPath id="histClip">
+            <rect x={PAD.left} y={PAD.top - 2} width={PLOT_W} height={PLOT_H + 4} />
+          </clipPath>
+
           {/* Grid lines */}
           <line
             x1={PAD.left}
@@ -284,6 +292,8 @@ export default function ImageHistogram({
             y2={PAD.top + PLOT_H}
             className="hist-axis"
           />
+
+          <g clipPath="url(#histClip)">
 
           {/* Reference baseline overlay (Before) */}
           {overlayBaseline && baselineData && (
@@ -379,6 +389,8 @@ export default function ImageHistogram({
             />
           )}
 
+          </g>
+
           {/* Axis Labels & Ticks */}
           <text x={PAD.left - 4} y={PAD.top + 5} className="hist-tick" textAnchor="end">
             {formatCount(maxBin)}
@@ -387,21 +399,11 @@ export default function ImageHistogram({
             0
           </text>
 
-          <text x={getX(0)} y={H - 6} className="hist-tick" textAnchor="start">
-            0
-          </text>
-          <text x={getX(64)} y={H - 6} className="hist-tick" textAnchor="middle">
-            64
-          </text>
-          <text x={getX(128)} y={H - 6} className="hist-tick" textAnchor="middle">
-            128
-          </text>
-          <text x={getX(192)} y={H - 6} className="hist-tick" textAnchor="middle">
-            192
-          </text>
-          <text x={getX(255)} y={H - 6} className="hist-tick" textAnchor="end">
-            255
-          </text>
+          {(zoom.zoomed ? niceTicks(lo, hi) : [0, 64, 128, 192, 255]).map((t) => (
+            <text key={t} x={getX(t)} y={H - 6} className="hist-tick" textAnchor="middle">
+              {t}
+            </text>
+          ))}
 
           {/* Hover indicator */}
           {hoverBin !== null && (
