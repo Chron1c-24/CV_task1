@@ -93,3 +93,227 @@ select, input[type="number"] {
 .chart .tick { fill: var(--muted); font-size: 9px; }
 .legend { display: flex; gap: 12px; font-size: 0.8rem; margin-top: 4px; }
 .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+
+/* ---------- Image Card with Histogram ---------- */
+.card-hist-wrapper {
+  margin-top: 10px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+.hist-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.hist-skeleton {
+  min-height: 80px;
+  display: grid;
+  place-items: center;
+  font-size: 0.8rem;
+  background: var(--bg);
+  border-radius: 6px;
+  margin-top: 8px;
+}
+
+.hist-error-box {
+  min-height: 60px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 12px;
+  background: var(--bg);
+  border-radius: 6px;
+  margin-top: 8px;
+  font-size: 0.8rem;
+}
+
+.hist-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 2px;
+}
+
+.hist-channels, .hist-options {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.hist-btn-tab, .hist-btn-opt {
+  padding: 2px 6px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1.2;
+}
+
+.hist-btn-tab:hover, .hist-btn-opt:hover {
+  border-color: var(--accent);
+}
+
+.hist-btn-tab.active, .hist-btn-opt.active {
+  background: var(--accent);
+  color: var(--accent-ink);
+  border-color: var(--accent);
+}
+
+.hist-btn-tab.r-tab.active { background: #ef4444; border-color: #ef4444; color: #fff; }
+.hist-btn-tab.g-tab.active { background: #22c55e; border-color: #22c55e; color: #fff; }
+.hist-btn-tab.b-tab.active { background: #3b82f6; border-color: #3b82f6; color: #fff; }
+
+.hist-badge {
+  font-size: 0.7rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.hist-chart-wrap {
+  position: relative;
+  width: 100%;
+}
+
+.hist-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.hist-axis {
+  stroke: var(--line);
+  stroke-width: 1;
+}
+
+.hist-tick {
+  fill: var(--muted);
+  font-size: 8px;
+  font-family: inherit;
+}
+
+.hist-hover-line {
+  stroke: var(--ink);
+  stroke-width: 1;
+  stroke-dasharray: 2 2;
+  pointer-events: none;
+}
+
+.hist-hover-dot {
+  fill: var(--accent);
+  stroke: var(--panel);
+  stroke-width: 1.5;
+}
+
+.hist-tooltip {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--panel);
+  font-size: 0.72rem;
+  padding: 3px 8px;
+  border-radius: 5px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  display: flex;
+  gap: 8px;
+  white-space: nowrap;
+  z-index: 10;
+}
+
+.hist-tooltip b {
+  color: #fff;
+}
+
+.hist-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 4px;
+  margin-top: 6px;
+  padding: 6px 8px;
+  background: var(--bg);
+  border-radius: 6px;
+  font-size: 0.72rem;
+}
+
+.hist-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.stat-label {
+  font-size: 0.65rem;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 600;
+}
+
+.stat-val {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.stat-delta {
+  font-size: 0.68rem;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.stat-delta.positive {
+  color: #22c55e;
+}
+
+.stat-delta.negative {
+  color: #ef4444;
+}
+
+.stat-delta.neutral {
+  color: var(--muted);
+}
+
+/* Before / After Panel Header enhancements */
+.panel-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.panel-diff-badge {
+  display: inline-flex;
+  gap: 8px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  color: var(--accent);
+}
+
+.slider-mode-wrap {
+  display: grid;
+  gap: 12px;
+}
+
+.slider-hist-grid {
+  margin-top: 4px;
+}
+

@@ -68,6 +68,7 @@ export default function App() {
           key={task.id}
           task={task}
           images={images}
+          urls={urls}
           beforeSrc={urls[0]}
           onUseAsInput={(png) => setImage(0, base64ToFile(png))}
         />

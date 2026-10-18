@@ -97,19 +97,6 @@ const RAW_TASKS = [
     ],
   },
 
-  // ---------- Task 4: histogram + distribution curve ----------
-  {
-    id: "histogram", group: "Task 4 · Histogram", label: "Histogram + distribution",
-    endpoint: "/api/histogram",
-    description: "Gray histogram (RGB is converted to gray first), PDF and CDF.",
-    options: [],
-    result: null,
-    outputs: [
-      { type: "chart", label: "Histogram", unit: "pixels", mode: "bar", series: [{ path: "hist", color: GRAY }] },
-      { type: "chart", label: "PDF", unit: "0-1", mode: "line", series: [{ path: "pdf", color: GRAY }] },
-      { type: "chart", label: "CDF", unit: "0-1", mode: "line", series: [{ path: "cdf", color: GRAY }] },
-    ],
-  },
 
   // ---------- Task 5: histogram equalization ----------
   {

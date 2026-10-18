@@ -4,12 +4,13 @@ import { TASK_BY_ID, defaultValues } from "../tasks.js";
 import ImageCard from "../components/ImageCard.jsx";
 import OptionsForm from "../components/OptionsForm.jsx";
 
-/* Compare tab: the same input through every variant, results side by side. Each variant keeps its own options. */
+/* Compare tab: the same input through every variant, results side by side with histograms under each photo. */
 export default function CompareView({ compare, images, beforeSrc }) {
   const variants = compare.variants.map((v) => ({ ...v, task: TASK_BY_ID[v.taskId], fixed: v.fixed ?? {} }));
   const [values, setValues] = useState(() => variants.map((v) => defaultValues(v.task, v.fixed)));
   const [runs, setRuns] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [originalHist, setOriginalHist] = useState(null);
 
   useEffect(() => setRuns([]), [images]); // new input -> old results are stale
 
@@ -36,12 +37,22 @@ export default function CompareView({ compare, images, beforeSrc }) {
       </section>
 
       <section className="grid compare">
-        <ImageCard title="Original" src={beforeSrc} placeholder="Choose an image" />
+        <ImageCard
+          title="Original"
+          src={beforeSrc}
+          placeholder="Choose an image"
+          onHistogramLoaded={setOriginalHist}
+        />
         {variants.map((v, i) => {
           const png = runs[i]?.response?.[v.task.result.key];
           return (
             <div key={v.label} className="compare-col">
-              <ImageCard title={v.label} src={png && toSrc(png)} placeholder="Press Run all" />
+              <ImageCard
+                title={v.label}
+                src={png && toSrc(png)}
+                placeholder="Press Run all"
+                baselineData={originalHist}
+              />
               {runs[i]?.error && <p className="error">{runs[i].error}</p>}
               <OptionsForm
                 options={v.task.options}
