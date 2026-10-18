@@ -22,7 +22,7 @@ const rgbSeries = (field) =>
 const RAW_TASKS = [
   // ---------- Task 1: additive noise ----------
   {
-    id: "noise-uniform", group: "Task 1 · Noise", label: "Uniform noise",
+    id: "noise-uniform", group: "Noise", label: "Uniform noise",
     endpoint: "/api/noise/uniform", compare: "noise",
     description: "Adds a random value in -amount..+amount to every pixel.",
     options: [
@@ -32,7 +32,7 @@ const RAW_TASKS = [
     result: { key: "image", label: "Noisy" },
   },
   {
-    id: "noise-gaussian", group: "Task 1 · Noise", label: "Gaussian noise",
+    id: "noise-gaussian", group: "Noise", label: "Gaussian noise",
     endpoint: "/api/noise/gaussian", compare: "noise",
     description: "Adds normally distributed noise with the given mean and sigma.",
     options: [
@@ -43,7 +43,7 @@ const RAW_TASKS = [
     result: { key: "image", label: "Noisy" },
   },
   {
-    id: "noise-salt-pepper", group: "Task 1 · Noise", label: "Salt & pepper noise",
+    id: "noise-salt-pepper", group: "Noise", label: "Salt & pepper noise",
     endpoint: "/api/noise/salt-pepper", compare: "noise",
     description: "Sets a fraction of the pixels to white (salt) or black (pepper).",
     options: [
@@ -56,14 +56,14 @@ const RAW_TASKS = [
 
   // ---------- Task 2: low-pass spatial filters ----------
   {
-    id: "filter-average", group: "Task 2 · Low-pass filters", label: "Average filter",
+    id: "filter-average", group: "Low-pass filters", label: "Average filter",
     endpoint: "/api/filters/average", compare: "filters",
     description: "Replaces every pixel with the mean of its window.",
     options: [KERNEL_SIZE],
     result: { key: "image", label: "Filtered" },
   },
   {
-    id: "filter-gaussian", group: "Task 2 · Low-pass filters", label: "Gaussian filter",
+    id: "filter-gaussian", group: "Low-pass filters", label: "Gaussian filter",
     endpoint: "/api/filters/gaussian", compare: "filters",
     description: "Weighted mean of the window; closer pixels count more.",
     options: [
@@ -73,7 +73,7 @@ const RAW_TASKS = [
     result: { key: "image", label: "Filtered" },
   },
   {
-    id: "filter-median", group: "Task 2 · Low-pass filters", label: "Median filter",
+    id: "filter-median", group: "Low-pass filters", label: "Median filter",
     endpoint: "/api/filters/median", compare: "filters",
     description: "Replaces every pixel with the median of its window (best for salt & pepper).",
     options: [KERNEL_SIZE],
@@ -82,7 +82,7 @@ const RAW_TASKS = [
 
   // ---------- Task 3: edge detection ----------
   {
-    id: "edges", group: "Task 3 · Edge detection", label: "Edge detection",
+    id: "edges", group: "Edge detection", label: "Edge detection",
     endpoint: "/api/edges", compare: "edges",
     description: "Sobel, Prewitt, Roberts (from scratch) or Canny (OpenCV).",
     options: [
@@ -100,7 +100,7 @@ const RAW_TASKS = [
 
   // ---------- Task 5: histogram equalization ----------
   {
-    id: "equalization-gray", group: "Task 5 · Equalization", label: "Equalization (gray)",
+    id: "equalization-gray", group: "Equalization", label: "Equalization (gray)",
     endpoint: "/api/equalization/gray", compare: "equalization",
     description: "Equalizes the gray image. Charts show the histogram and CDF BEFORE equalization.",
     options: [],
@@ -111,7 +111,7 @@ const RAW_TASKS = [
     ],
   },
   {
-    id: "equalization-color", group: "Task 5 · Equalization", label: "Equalization (color)",
+    id: "equalization-color", group: "Equalization", label: "Equalization (color)",
     endpoint: "/api/equalization/color", compare: "equalization",
     description: "Equalizes only the Y (luminance) channel so colours stay natural.",
     options: [],
@@ -120,7 +120,7 @@ const RAW_TASKS = [
 
   // ---------- Task 6: min-max normalization ----------
   {
-    id: "normalization", group: "Task 6 · Normalization", label: "Min-max normalization",
+    id: "normalization", group: "Normalization", label: "Min-max normalization",
     endpoint: "/api/normalization",
     description: "Stretches the image values into [new_min, new_max].",
     options: [
@@ -132,14 +132,14 @@ const RAW_TASKS = [
 
   // ---------- Task 8: RGB -> gray and R, G, B histograms ----------
   {
-    id: "rgb-gray", group: "Task 8 · RGB", label: "RGB → gray",
+    id: "rgb-gray", group: "RGB", label: "RGB → gray",
     endpoint: "/api/rgb/gray",
     description: "Gray = 0.299R + 0.587G + 0.114B.",
     options: [],
     result: { key: "image", label: "Gray" },
   },
   {
-    id: "rgb-histograms", group: "Task 8 · RGB", label: "R, G, B histograms + CDF",
+    id: "rgb-histograms", group: "RGB", label: "R, G, B histograms + CDF",
     endpoint: "/api/rgb/histograms",
     description: "Histogram and CDF of each colour channel. Needs an RGB image.",
     options: [],
@@ -152,27 +152,35 @@ const RAW_TASKS = [
 
   // ---------- Task 9: frequency-domain filters ----------
   {
-    id: "frequency", group: "Task 9 · Frequency filters", label: "Ideal low-pass / high-pass",
-    endpoint: "/api/frequency/filters",
-    description: "Ideal filters in the DFT domain. Cutoff is a radius from the spectrum centre.",
+    id: "frequency-lowpass", group: "Frequency filters", label: "Ideal low-pass",
+    endpoint: "/api/frequency/filters", compare: "frequency",
+    description: "Ideal low-pass filter in the DFT domain. Keeps frequencies inside the cutoff radius.",
     options: [
-      { name: "filter_type", label: "Filter", type: "select", default: "low-pass", choices: ["low-pass", "high-pass"] },
       { name: "cutoff", label: "Cutoff", type: "float", default: 30, min: 0, step: 1, unit: "frequency samples" },
     ],
-    result: (v) => v.filter_type === "high-pass"
-      ? { key: "hp", label: "High-pass" }
-      : { key: "lp", label: "Low-pass" },
+    result: { key: "lp", label: "Low-pass" },
     outputs: [
-      { type: "image", key: "hp", label: "High-pass" },
       { type: "image", key: "spectrum", label: "Spectrum (log magnitude)" },
       { type: "image", key: "lp_mask", label: "Low-pass mask" },
+    ],
+  },
+  {
+    id: "frequency-highpass", group: "Frequency filters", label: "Ideal high-pass",
+    endpoint: "/api/frequency/filters", compare: "frequency",
+    description: "Ideal high-pass filter in the DFT domain. Keeps frequencies outside the cutoff radius.",
+    options: [
+      { name: "cutoff", label: "Cutoff", type: "float", default: 30, min: 0, step: 1, unit: "frequency samples" },
+    ],
+    result: { key: "hp", label: "High-pass" },
+    outputs: [
+      { type: "image", key: "spectrum", label: "Spectrum (log magnitude)" },
       { type: "image", key: "hp_mask", label: "High-pass mask" },
     ],
   },
 
   // ---------- Task 10: hybrid images ----------
   {
-    id: "hybrid", group: "Task 10 · Hybrid images", label: "Hybrid image",
+    id: "hybrid", group: "Hybrid images", label: "Hybrid image",
     endpoint: "/api/hybrid",
     inputs: ["img_far", "img_near"],
     description: "Low-pass of the far image + high-pass of the near image (near is resized to far's size).",
@@ -226,6 +234,13 @@ export const COMPARE = {
     variants: [
       { label: "Gray", taskId: "equalization-gray" },
       { label: "Color", taskId: "equalization-color" },
+    ],
+  },
+  frequency: {
+    title: "Compare frequency-domain filters",
+    variants: [
+      { label: "Low-pass", taskId: "frequency-lowpass" },
+      { label: "High-pass", taskId: "frequency-highpass" },
     ],
   },
 };
