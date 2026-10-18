@@ -2,10 +2,10 @@ import { useEffect, useState } from "react";
 import { base64ToFile } from "./api.js";
 import { COMPARE, TASKS, TASK_BY_ID } from "./tasks.js";
 import ImageInputs from "./components/ImageInputs.jsx";
+import Sidebar from "./components/Sidebar.jsx";
 import CompareView from "./views/CompareView.jsx";
 import TaskView from "./views/TaskView.jsx";
 
-const GROUPS = [...new Set(TASKS.map((task) => task.group))];
 
 /* File -> object URL for <img>, revoked when the file changes. */
 function useObjectUrl(file) {
@@ -32,22 +32,13 @@ export default function App() {
   const setImage = (index, file) => setImages((prev) => prev.map((f, i) => (i === index ? file : f)));
 
   return (
-    <div className="app">
-      <header className="header">
-        <h1>CV Task 1</h1>
-        <label className="picker">
-          <span>Task</span>
-          <select value={taskId} onChange={(e) => setTaskId(e.target.value)}>
-            {GROUPS.map((group) => (
-              <optgroup key={group} label={group}>
-                {TASKS.filter((t) => t.group === group).map((t) => (
-                  <option key={t.id} value={t.id}>{t.label}</option>
-                ))}
-              </optgroup>
-            ))}
-          </select>
-        </label>
-      </header>
+   <div className="layout">
+     <aside className="side">
+       <h1>CV Task 1</h1>
+       <Sidebar tasks={TASKS} activeId={taskId} onSelect={setTaskId} />
+     </aside>
+
+     <main className="app">
 
       <ImageInputs inputs={task.inputs} urls={urls} onSelect={setImage} />
 
@@ -75,6 +66,7 @@ export default function App() {
       ) : (
         <CompareView key={task.compare} compare={compare} images={images} beforeSrc={urls[0]} />
       )}
+    </main>
     </div>
   );
 }

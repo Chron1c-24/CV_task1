@@ -34,11 +34,33 @@ small, .muted { color: var(--muted); }
 .muted { margin: 6px 0; font-size: 0.9rem; }
 .error { color: var(--error); margin: 8px 0 0; font-size: 0.9rem; }
 
-.app { max-width: 1200px; margin: 0 auto; padding: 16px; display: grid; gap: 14px; }
+/* Page = sidebar (left) + content (right) */
+.layout { display: grid; grid-template-columns: 260px minmax(0, 1fr); min-height: 100vh; }
+.side {
+  position: sticky; top: 0; align-self: start; height: 100vh; overflow-y: auto;
+  background: var(--panel); border-right: 1px solid var(--line); padding: 16px 12px;
+}
+.side h1 { padding: 0 8px 14px; }
+.app { max-width: 1200px; width: 100%; margin: 0 auto; padding: 16px; display: grid; gap: 14px; align-content: start; }
 
-.header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.picker { display: flex; align-items: center; gap: 8px; font-weight: 600; }
-.picker select { min-width: 260px; }
+/* Collapsible task menu */
+.sidebar { display: grid; gap: 4px; }
+.side-head {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  border: 0; background: transparent; font-weight: 700; padding: 8px;
+}
+.side-head:hover, .side-item:hover { background: var(--bg); }
+.side-head.has-active { color: var(--accent); }
+.side-arrow { width: 1em; color: var(--muted); }
+.side-items { list-style: none; margin: 0 0 6px; padding: 0 0 0 18px; display: grid; gap: 2px; }
+.side-item { width: 100%; text-align: left; border: 0; background: transparent; padding: 7px 10px; }
+.side-item.active { background: var(--accent); color: var(--accent-ink); }
+
+/* Narrow screens: menu goes on top */
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; }
+  .side { position: static; height: auto; max-height: 50vh; border-right: 0; border-bottom: 1px solid var(--line); }
+}
 
 .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px; }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
