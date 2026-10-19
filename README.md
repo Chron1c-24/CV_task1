@@ -11,7 +11,6 @@ task allows it (random noise generation, Canny, DFT) and for reading image files
 | `services/` | Python, NumPy, OpenCV | The image-processing math (one file per topic) |
 | `api/` | FastAPI | One REST endpoint per operation; receives an image, returns the result |
 | `frontend/` | React + Vite | The user interface: upload, set options, see before / after, compare |
-| `tests/` | pytest | Checks every endpoint (25 tests) |
 
 ---
 
@@ -47,7 +46,6 @@ task allows it (random noise generation, Canny, DFT) and for reading image files
 venv\Scripts\activate             # Windows
 pip install -r requirements.txt   # pinned versions, so the setup is reproducible
 uvicorn api.main:app --reload     # API on http://127.0.0.1:8000 (interactive docs at /docs)
-python -m pytest tests            # run the tests
 ```
 
 **Frontend** (from `CV_task1/frontend/`, in a second terminal):
@@ -88,10 +86,11 @@ sees one origin and the backend needs no CORS setup.
 
 | Feature | What it does | Why |
 |---|---|---|
-| **Before / After** | Side by side, or one image with a drag slider | Small changes (light noise, mild blur) are easier to see with the slider |
-| **Compare tab** | Runs every variant on the same image and shows them side by side (noise types, filters, edge detectors, gray vs color equalization). Each variant keeps its own options | To answer "which one is better for this image?" in one click |
+| **Before / After** | Side by side, or one image with a drag slider, with histograms under both and Δ-mean / Δ-std badges | Small changes (light noise, mild blur) are easier to see with the slider |
+| **Compare tab** | Independent comparison windows on the same image (noise types, filters, edge detectors, gray vs color equalization). Each window has its own type dropdown and its own options, and can be added or removed; run all windows at once or one at a time | To answer "which one is better for this image?" in one click |
 | **Use result as input** | Sends the result back as the new input | To chain steps, e.g. add salt & pepper noise → then compare filters to see the median filter remove it |
 | **Charts** | Histogram (bars), PDF and CDF (lines), R/G/B in their own colors | Tasks 4, 5 and 8 output curves, not images |
+| **Histogram under every image** | Each shown image gets a histogram computed in the browser (canvas): gray or R/G/B, optional PDF/CDF, mean / std / median / range, wheel zoom and a hover tooltip | Seeing how an operation changed the distribution is often the point of the task |
 | **Clear errors** | Shows the backend message (e.g. "kernel_size must be a positive odd integer") | The user knows what to fix |
 
 ---
@@ -110,15 +109,17 @@ CV_task1/
 │   ├── normalization.py   Task 6
 │   └── frequency.py       Task 9 + Task 10
 ├── api/main.py            FastAPI app, 15 endpoints
-├── frontend/src/
-│   ├── tasks.js           the list of tasks (endpoint, options, outputs) — the UI is built from it
-│   ├── api.js             the only file that calls the backend
-│   ├── App.jsx            task picker, image inputs, tabs
-│   ├── views/             TaskView (Preview tab), CompareView (Compare tab)
-│   └── components/        BeforeAfter, Chart, ImageCard, ImageInputs, OptionsForm, Outputs
-├── tests/test_api.py      API tests
-├── requirements.txt       pinned Python versions
-└── CV task1 p1.py, cv task1 p2.py   the original single-file versions (kept for reference)
+├── frontend/
+│   ├── src/
+│   │   ├── tasks.js       the list of tasks (endpoint, options, outputs) — the UI is built from it
+│   │   ├── api.js         the only file that calls the backend
+│   │   ├── App.jsx        task picker, image inputs, tabs
+│   │   ├── views/         TaskView (Preview tab), CompareView (Compare tab)
+│   │   ├── components/    Sidebar, ImageInputs, OptionsForm, BeforeAfter, Outputs,
+│   │   │                  Chart, ImageCard, ImageHistogram
+│   │   └── utils/         histogram.js (in-browser histograms), useXZoom.js (chart zoom / pan)
+│   └── vite.config.js     dev proxy: /api/* -> http://127.0.0.1:8000
+└── requirements.txt       pinned Python versions
 ```
 
 **Dependency rule:** every service imports only from `image_io.py`, so shared code (gray
@@ -159,7 +160,8 @@ hybrid image is clipped instead, because it is already a real image.
 | **FastAPI** | Typed options, automatic interactive docs at `/docs`, small. Django would be too much for this |
 | **One endpoint per operation** | Each endpoint shows its own options in the docs and in the UI |
 | **Upload as multipart form, reply as JSON with base64 PNG** | The browser shows it directly with `<img src="data:image/png;base64,...">`; histograms need JSON anyway |
-| **No database, no state** | Every request is one image in, one result out |
+| **No database** | Every request is one image in, one result out. The only state is a small in-memory FFT cache (below), not a data store |
+| **In-memory FFT cache** | `/api/frequency/filters` and `/api/hybrid` hash the uploaded bytes (SHA-256) and keep the FFTs of the last 4 results (LRU). Re-running with only a different cutoff skips the decode and the DFT. Cleared on restart |
 | **Plain `def` endpoints, not `async def`** | The work is CPU-heavy NumPy. FastAPI runs plain `def` in a worker thread, so one slow filter does not block other requests |
 | **Errors** | A bad option or bad image (`ValueError` in a service) → HTTP **400** with a clear message. A wrong type or out-of-range value checked by FastAPI → HTTP **422** |
 | **`seed` option for noise** | Same seed → same noise, so results can be reproduced |
@@ -214,7 +216,12 @@ mistakes). Thresholds can be above 255, because the Sobel strength can reach 204
 - Task 10: `hybrid = low-pass(far image) + high-pass(near image)`. Up close you see the near
   image's details; from far away (or when the image is shrunk) only the far image's smooth shape
   is left. The hybrid uses **Gaussian** masks, because ideal masks create ripples ("ringing").
-- The **pyramid** shrinks the hybrid to half its size at each level, to simulate stepping back.
+- **FFT caching:** the DFT is the expensive step and it does not depend on the cutoff, so Task 9
+  and Task 10 cache the per-channel FFTs, keyed by the SHA-256 of the uploaded bytes. Task 10 keys
+  by the *pair* of uploads, because the near image is resized to the far image's size before its
+  DFT. Changing a cutoff on the same image (or re-sending the same image) reuses the cached FFTs —
+  no re-decode and no new DFT. The cache holds 4 entries (LRU, per process), since each entry keeps
+  several full-size complex arrays in memory.
 
 ---
 
@@ -298,8 +305,8 @@ count in one NumPy call, with an identical result (still from scratch, no `cv2.c
 | Our `rgb_to_gray` vs `cv2.cvtColor` | Max difference **1** gray level, on 0.12% of pixels (rounding) |
 | Our histogram vs `np.histogram` and `cv2.calcHist` | Identical counts |
 | Vertical step edge 0 → 200 | Sobel grad_x 800, grad_y 0 · rotated 90°: grad_x 0, grad_y 800 |
-| API tests (`python -m pytest tests`) | **25 passed**: every endpoint returns the right size and fields, same seed gives same noise, bad input gives 400 / 422 |
-| Frontend (`npm run build`, then every endpoint called through the Vite proxy with the field names from `tasks.js`) | Build OK · **18 / 18** calls return 200 with the keys `tasks.js` reads · even kernel → 400, `pyramid_levels` 9 → 422, both shown as readable messages |
+| Endpoints called through the Vite proxy, with the field names from `tasks.js` | Every endpoint returns 200 with the keys `tasks.js` reads; an even kernel size → 400; the message is shown as readable text |
+| Frontend build (`npm run build`) | Build OK |
 
 ---
 
@@ -324,10 +331,13 @@ image in the response is a base64 PNG. Full interactive docs: run the backend an
 | 8 | `/api/rgb/gray` | — | `image` |
 | 8 | `/api/rgb/histograms` | — | `{"R": {hist, pdf, cdf}, "G": …, "B": …}` |
 | 9 | `/api/frequency/filters` | `cutoff` 30 (frequency samples) | `spectrum`, `lp_mask`, `hp_mask`, `lp`, `hp` |
-| 10 | `/api/hybrid` | files `img_far`, `img_near` · `cutoff_low` 15 · `cutoff_high` 25 · `pyramid_levels` 4 (1–8) | `low`, `high`, `hybrid`, `pyramid` (list) |
+| 10 | `/api/hybrid` | files `img_far`, `img_near` · `cutoff_low` 15 · `cutoff_high` 25 | `low`, `high`, `hybrid` |
 
 **Units:** sizes in pixels · gray levels 0–255 · fractions 0–1 · histogram counts in pixels ·
 `pdf` and `cdf` 0–1 · frequency cutoffs in samples from the spectrum center.
+
+**Caching:** `/api/frequency/filters` and `/api/hybrid` remember the FFTs of the last 4 uploaded
+images / image pairs, so re-sending the same image or changing only a cutoff is fast.
 
 Example (Python):
 ```python
