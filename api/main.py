@@ -13,6 +13,8 @@ Errors: invalid option or image -> 400 {"detail": "..."}.
 """
 
 import base64
+import hashlib
+from collections import OrderedDict
 from enum import Enum
 
 import cv2
@@ -31,6 +33,11 @@ from services.frequency import frequency_filters, make_hybrid
 
 
 app = FastAPI(title="CV_task1 API", version="1.0.0")
+
+# ---------- FFT cache (avoids recomputing DFT when only cutoff changes) ----------
+_FFT_CACHE_MAX = 4
+_fft_cache = OrderedDict()     # key: image content hash -> (img, channel_ffts)
+_hybrid_cache = OrderedDict()  # key: (far hash, near hash) -> (far, near, channel_ffts)
 
 
 class EdgeMethod(str, Enum):
@@ -232,8 +239,30 @@ def frequency(image: UploadFile = File(...), cutoff: float = Form(30)):
     Ideal low-pass and high-pass in the DFT domain.
     cutoff: radius in frequency samples (distance from the centre of the spectrum).
     Response: spectrum (log magnitude), lp_mask, hp_mask (0 or 1), lp and hp (filtered images).
+
+    The per-channel FFTs are cached so changing cutoff on the same image is instant.
     """
-    spectrum, lp_mask, hp_mask, lp, hp = frequency_filters(read_image(image), cutoff=cutoff)
+    raw_bytes = image.file.read()
+    img_hash = hashlib.sha256(raw_bytes).hexdigest()
+
+    # Check cache for pre-computed FFTs
+    cached_data = None
+    cached_img = None
+    if img_hash in _fft_cache:
+        _fft_cache.move_to_end(img_hash)  # mark as recently used
+        cached_img, cached_data = _fft_cache[img_hash]
+
+    img = cached_img if cached_img is not None else decode_image(raw_bytes, image.filename or "uploaded file")
+    spectrum, lp_mask, hp_mask, lp, hp, cache_data = frequency_filters(
+        img, cutoff=cutoff, cached_data=cached_data
+    )
+
+    # Store FFTs in cache (evict oldest if full)
+    if img_hash not in _fft_cache:
+        if len(_fft_cache) >= _FFT_CACHE_MAX:
+            _fft_cache.popitem(last=False)
+        _fft_cache[img_hash] = (img, cache_data)
+
     return {
         "spectrum": display_png(spectrum),
         "lp_mask": display_png(lp_mask),
@@ -256,13 +285,33 @@ def hybrid(
     hybrid = low-pass(img_far, cutoff_low) + high-pass(img_near, cutoff_high).
     img_near is resized to img_far's size.
     Response: low, high (display-normalized), hybrid (clipped to 0-255).
+
+    The per-channel FFTs of both images are cached per uploaded pair (the near
+    image's are always computed after the resize), so changing cutoff_low or
+    cutoff_high on the same two images is instant.
     """
-    low, high, combined, _ = make_hybrid(
-        read_image(img_far),
-        read_image(img_near),
-        cutoff_low=cutoff_low,
-        cutoff_high=cutoff_high,
+    raw_far = img_far.file.read()
+    raw_near = img_near.file.read()
+    pair_hash = (hashlib.sha256(raw_far).hexdigest(), hashlib.sha256(raw_near).hexdigest())
+
+    # Check cache for pre-computed FFTs of this exact pair of images
+    cached_data = None
+    if pair_hash in _hybrid_cache:
+        _hybrid_cache.move_to_end(pair_hash)  # mark as recently used
+        far, near, cached_data = _hybrid_cache[pair_hash]
+    else:
+        far = decode_image(raw_far, img_far.filename or "uploaded file")
+        near = decode_image(raw_near, img_near.filename or "uploaded file")
+
+    low, high, combined, _, cache_data = make_hybrid(
+        far, near, cutoff_low=cutoff_low, cutoff_high=cutoff_high, cached_data=cached_data
     )
+
+    # Store FFTs in cache (evict oldest pair if full)
+    if pair_hash not in _hybrid_cache:
+        if len(_hybrid_cache) >= _FFT_CACHE_MAX:
+            _hybrid_cache.popitem(last=False)
+        _hybrid_cache[pair_hash] = (far, near, cache_data)
     return {
         "low": display_png(low),
         "high": display_png(high),
