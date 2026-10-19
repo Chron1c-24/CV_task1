@@ -29,13 +29,34 @@ def _make_noise(shape, kind, a, b):
     return noise
 
 
+def _is_gray_like(image):
+    """True for an RGB image stored with identical R, G and B (a gray picture in a 3-channel file)."""
+    return (
+        image.ndim == 3
+        and np.array_equal(image[:, :, 0], image[:, :, 1])
+        and np.array_equal(image[:, :, 0], image[:, :, 2])
+    )
+
+
+def _noise_for(image, kind, a, b):
+    """Noise matching the image.
+
+    Gray-looking images get ONE noise map copied to every channel, so they stay gray.
+    Real color images get independent noise per channel.
+    """
+    if _is_gray_like(image):
+        single = _make_noise(image.shape[:2], kind, a, b)
+        return np.repeat(single[:, :, None], image.shape[2], axis=2)
+    return _make_noise(image.shape, kind, a, b)
+
+
 def add_uniform_noise(image, amount=25, seed=None):
     image = validate_image(image)
     if not 0 <= amount <= 255:
         raise ValueError("amount must be between 0 and 255.")
     if seed is not None:
         cv2.setRNGSeed(int(seed))
-    noise = _make_noise(image.shape, "uniform", -amount, amount)
+    noise = _noise_for(image, "uniform", -amount, amount)
     return np.clip(image.astype(np.float32) + noise, 0, 255).astype(np.uint8)
 
 
@@ -45,7 +66,7 @@ def add_gaussian_noise(image, mean=0.0, sigma=20.0, seed=None):
         raise ValueError("sigma must be non-negative.")
     if seed is not None:
         cv2.setRNGSeed(int(seed))
-    noise = _make_noise(image.shape, "gaussian", mean, sigma)
+    noise = _noise_for(image, "gaussian", mean, sigma)
     return np.clip(image.astype(np.float32) + noise, 0, 255).astype(np.uint8)
 
 
