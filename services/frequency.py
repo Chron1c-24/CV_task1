@@ -71,8 +71,8 @@ def frequency_filters(img, cutoff=30, cached_data=None):
     hp_mask = highpass_mask(gray.shape, cutoff, "ideal")
 
     # Apply both masks to the same cached FFTs
-    lp = np.dstack([_apply_mask_to_fft(F, lp_mask) for F in channel_ffts])
-    hp = np.dstack([_apply_mask_to_fft(F, hp_mask) for F in channel_ffts])
+    lp = _filtered_stack(channel_ffts, lp_mask)
+    hp = _filtered_stack(channel_ffts, hp_mask)
     return spectrum, lp_mask, hp_mask, lp, hp, (channel_ffts, F_gray)
 
 
