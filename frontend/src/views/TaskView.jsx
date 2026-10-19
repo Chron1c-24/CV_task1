@@ -1,26 +1,34 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { runTaskSafe, toSrc } from "../api.js";
 import { defaultValues, resultFor } from "../tasks.js";
+import { useSaved } from "../utils/useSaved.js";
 import BeforeAfter from "../components/BeforeAfter.jsx";
 import ImageCard from "../components/ImageCard.jsx";
 import OptionsForm from "../components/OptionsForm.jsx";
 import Outputs from "../components/Outputs.jsx";
 
-/* Preview tab: options -> Apply -> Before/After + extra outputs. */
-export default function TaskView({ task, images, urls, beforeSrc, onUseAsInput }) {
-  const [values, setValues] = useState(() => defaultValues(task));
-  const [run, setRun] = useState({ response: null, error: "" });
+const EMPTY_RUN = { response: null, error: "" };
+
+/* Saved preview state after a new input image: keep the options, drop the stale result. */
+export const clearPreviewRun = (state) => ({ ...state, run: EMPTY_RUN });
+
+/*
+ * Preview tab: options -> Apply -> Before/After + extra outputs.
+ * saved / onSave: this task's {values, run}, kept in App so it survives switching task or tab.
+ */
+export default function TaskView({ task, images, urls, beforeSrc, onUseAsInput, saved, onSave }) {
+  const [{ values, run }, setState] = useSaved(saved, onSave, () => ({ values: defaultValues(task), run: EMPTY_RUN }));
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => setRun({ response: null, error: "" }), [images]); // new input -> old result is stale
-
+  const setValues = (next) => setState((prev) => ({ ...prev, values: next(prev.values) }));
   const ready = task.inputs.every((_, i) => images[i]);
   const result = resultFor(task, values);
   const resultPng = result && run.response?.[result.key];
 
   async function apply() {
     setLoading(true);
-    setRun(await runTaskSafe(task, values, images));
+    const newRun = await runTaskSafe(task, values, images);
+    setState((prev) => ({ ...prev, run: newRun }));
     setLoading(false);
   }
 
@@ -38,7 +46,7 @@ export default function TaskView({ task, images, urls, beforeSrc, onUseAsInput }
           <button className="primary" onClick={apply} disabled={!ready || loading}>
             {loading ? "Running…" : "Apply"}
           </button>
-          <button onClick={() => setValues(defaultValues(task))}>Reset options</button>
+          <button onClick={() => setValues(() => defaultValues(task))}>Reset options</button>
           {resultPng && <button onClick={() => onUseAsInput(resultPng)}>Use result as input</button>}
         </div>
         {!ready && <p className="muted">Upload {task.inputs.length > 1 ? "both images" : "an image"} first.</p>}

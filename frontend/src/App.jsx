@@ -3,8 +3,13 @@ import { base64ToFile } from "./api.js";
 import { COMPARE, TASKS, TASK_BY_ID } from "./tasks.js";
 import ImageInputs from "./components/ImageInputs.jsx";
 import Sidebar from "./components/Sidebar.jsx";
-import CompareView from "./views/CompareView.jsx";
-import TaskView from "./views/TaskView.jsx";
+import CompareView, { clearCompareRuns } from "./views/CompareView.jsx";
+import TaskView, { clearPreviewRun } from "./views/TaskView.jsx";
+
+const mapValues = (obj, fn) => Object.fromEntries(Object.entries(obj).map(([key, value]) => [key, fn(value)]));
+
+/* Setter for one key of a {key: state} store; the updater gets that key's previous state. */
+const saverFor = (setStore, key) => (updater) => setStore((prev) => ({ ...prev, [key]: updater(prev[key]) }));
 
 /* File -> object URL for <img>, revoked when the file changes. */
 function useObjectUrl(file) {
@@ -23,6 +28,9 @@ export default function App() {
   const [tab, setTab] = useState("preview");
   const [images, setImages] = useState([null, null]); // in the order of task.inputs; shared by all tasks
   const urls = [useObjectUrl(images[0]), useObjectUrl(images[1])];
+  // Last options + result per tab, so they survive switching task or Preview <-> Compare
+  const [previewSaved, setPreviewSaved] = useState({}); // {taskId: {values, run}}
+  const [compareSaved, setCompareSaved] = useState({}); // {compare group: slots}
 
   const task = TASK_BY_ID[taskId];
   const compare = task.compare && COMPARE[task.compare];
@@ -30,7 +38,12 @@ export default function App() {
 
   const groupTasks = TASKS.filter((t) => t.group === task.group);
 
-  const setImage = (index, file) => setImages((prev) => prev.map((f, i) => (i === index ? file : f)));
+  // New input -> every saved result is stale (options are kept)
+  function setImage(index, file) {
+    setImages((prev) => prev.map((f, i) => (i === index ? file : f)));
+    setPreviewSaved((prev) => mapValues(prev, clearPreviewRun));
+    setCompareSaved((prev) => mapValues(prev, clearCompareRuns));
+  }
 
   return (
     <div className="layout">
@@ -63,9 +76,7 @@ export default function App() {
         {/* Navigation centered in middle */}
         <Sidebar tasks={TASKS} activeId={taskId} onSelect={setTaskId} />
 
-        <div className="side-footer">
-          <span className="side-version">CV LAB • V1.0</span>
-        </div>
+        
       </aside>
 
       <main className="app">
@@ -112,9 +123,18 @@ export default function App() {
             urls={urls}
             beforeSrc={urls[0]}
             onUseAsInput={(png) => setImage(0, base64ToFile(png))}
+            saved={previewSaved[task.id]}
+            onSave={saverFor(setPreviewSaved, task.id)}
           />
         ) : (
-          <CompareView key={task.compare} compare={compare} images={images} beforeSrc={urls[0]} />
+          <CompareView
+            key={task.compare}
+            compare={compare}
+            images={images}
+            beforeSrc={urls[0]}
+            saved={compareSaved[task.compare]}
+            onSave={saverFor(setCompareSaved, task.compare)}
+          />
         )}
       </main>
     </div>

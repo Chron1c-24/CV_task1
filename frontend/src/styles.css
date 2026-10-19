@@ -132,7 +132,7 @@ small, .muted { color: var(--muted); }
 .side-group-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* justify-content: center; */
   gap: 10px;
   width: 100%;
   padding: 10px 14px;

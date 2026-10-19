@@ -1,4 +1,4 @@
-# CV Task 1 — Image Processing from Scratch
+# CV Task 1   Image Processing from Scratch
 
 A small web app that applies classic image-processing operations to an uploaded image and shows
 the result next to the original.
@@ -89,6 +89,7 @@ sees one origin and the backend needs no CORS setup.
 | **Before / After** | Side by side, or one image with a drag slider, with histograms under both and Δ-mean / Δ-std badges | Small changes (light noise, mild blur) are easier to see with the slider |
 | **Compare tab** | Independent comparison windows on the same image (noise types, filters, edge detectors, gray vs color equalization). Each window has its own type dropdown and its own options, and can be added or removed; run all windows at once or one at a time | To answer "which one is better for this image?" in one click |
 | **Use result as input** | Sends the result back as the new input | To chain steps, e.g. add salt & pepper noise → then compare filters to see the median filter remove it |
+| **Results are kept per tab** | Each task's Preview (options + last result) and each Compare group (windows, options, results) is stored in `App.jsx`, so switching task or Preview ↔ Compare and coming back shows the same thing. A new input image (upload or "Use result as input") clears the saved results but keeps the options | Results from the old image would not match the new Before image |
 | **Charts** | Histogram (bars), PDF and CDF (lines), R/G/B in their own colors | Tasks 4, 5 and 8 output curves, not images |
 | **Histogram under every image** | Each shown image gets a histogram computed in the browser (canvas): gray or R/G/B, optional PDF/CDF, mean / std / median / range, wheel zoom and a hover tooltip | Seeing how an operation changed the distribution is often the point of the task |
 | **Clear errors** | Shows the backend message (e.g. "kernel_size must be a positive odd integer") | The user knows what to fix |
@@ -111,13 +112,14 @@ CV_task1/
 ├── api/main.py            FastAPI app, 15 endpoints
 ├── frontend/
 │   ├── src/
-│   │   ├── tasks.js       the list of tasks (endpoint, options, outputs) — the UI is built from it
+│   │   ├── tasks.js       the list of tasks (endpoint, options, outputs)   the UI is built from it
 │   │   ├── api.js         the only file that calls the backend
-│   │   ├── App.jsx        task picker, image inputs, tabs
+│   │   ├── App.jsx        task picker, image inputs, tabs, saved state per tab
 │   │   ├── views/         TaskView (Preview tab), CompareView (Compare tab)
 │   │   ├── components/    Sidebar, ImageInputs, OptionsForm, BeforeAfter, Outputs,
 │   │   │                  Chart, ImageCard, ImageHistogram
-│   │   └── utils/         histogram.js (in-browser histograms), useXZoom.js (chart zoom / pan)
+│   │   └── utils/         histogram.js (in-browser histograms), useXZoom.js (chart zoom / pan),
+│   │                      useSaved.js (state kept in App so it survives switching tabs)
 │   └── vite.config.js     dev proxy: /api/* -> http://127.0.0.1:8000
 └── requirements.txt       pinned Python versions
 ```
@@ -219,7 +221,7 @@ mistakes). Thresholds can be above 255, because the Sobel strength can reach 204
 - **FFT caching:** the DFT is the expensive step and it does not depend on the cutoff, so Task 9
   and Task 10 cache the per-channel FFTs, keyed by the SHA-256 of the uploaded bytes. Task 10 keys
   by the *pair* of uploads, because the near image is resized to the far image's size before its
-  DFT. Changing a cutoff on the same image (or re-sending the same image) reuses the cached FFTs —
+  DFT. Changing a cutoff on the same image (or re-sending the same image) reuses the cached FFTs  
   no re-decode and no new DFT. The cache holds 4 entries (LRU, per process), since each entry keeps
   several full-size complex arrays in memory.
 
@@ -254,7 +256,7 @@ a real 0 → 200 step edge.
 | Sobel | 86.3 | 800 | 9.3 |
 | Prewitt | 60.8 | 600 | 9.9 |
 | Roberts | 35.0 | 200 | **5.7** |
-| Sobel after a 5×5 Gaussian filter | 26.0 | — | — |
+| Sobel after a 5×5 Gaussian filter | 26.0 |   |   |
 
 **Conclusions:**
 - **Roberts is the most sensitive to noise**: it uses only 2 pixels, so nothing is averaged.
@@ -324,12 +326,12 @@ image in the response is a base64 PNG. Full interactive docs: run the backend an
 | 2 | `/api/filters/gaussian` | `kernel_size` 3 · `sigma` 0 (pixels, 0 = automatic) | `image` |
 | 2 | `/api/filters/median` | `kernel_size` 3 | `image` |
 | 3 | `/api/edges` | `method` sobel / prewitt / roberts / canny · `canny_low` 100 · `canny_high` 200 | `grad_x`, `grad_y` (null for Canny), `result` |
-| 4 | `/api/histogram` | — | `hist`, `pdf`, `cdf` (256 values each) |
-| 5 | `/api/equalization/gray` | — | `image`, plus `hist` and `cdf` **before** equalization |
-| 5 | `/api/equalization/color` | — | `image` |
+| 4 | `/api/histogram` |   | `hist`, `pdf`, `cdf` (256 values each) |
+| 5 | `/api/equalization/gray` |   | `image`, plus `hist` and `cdf` **before** equalization |
+| 5 | `/api/equalization/color` |   | `image` |
 | 6 | `/api/normalization` | `new_min` 0 · `new_max` 255 (gray levels) | `image` |
-| 8 | `/api/rgb/gray` | — | `image` |
-| 8 | `/api/rgb/histograms` | — | `{"R": {hist, pdf, cdf}, "G": …, "B": …}` |
+| 8 | `/api/rgb/gray` |   | `image` |
+| 8 | `/api/rgb/histograms` |   | `{"R": {hist, pdf, cdf}, "G": …, "B": …}` |
 | 9 | `/api/frequency/filters` | `cutoff` 30 (frequency samples) | `spectrum`, `lp_mask`, `hp_mask`, `lp`, `hp` |
 | 10 | `/api/hybrid` | files `img_far`, `img_near` · `cutoff_low` 15 · `cutoff_high` 25 | `low`, `high`, `hybrid` |
 

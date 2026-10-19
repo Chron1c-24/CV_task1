@@ -1,14 +1,27 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { runTaskSafe, toSrc } from "../api.js";
 import { TASK_BY_ID, defaultValues } from "../tasks.js";
+import { useSaved } from "../utils/useSaved.js";
 import ImageCard from "../components/ImageCard.jsx";
 import OptionsForm from "../components/OptionsForm.jsx";
+
+const newSlot = (variant) => ({
+  id: `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+  variantLabel: variant.label,
+  values: defaultValues(variant.task, variant.fixed),
+  run: null,
+  error: "",
+});
+
+/* Saved slots after a new input image: keep windows and options, drop the stale results. */
+export const clearCompareRuns = (slots) => slots.map((slot) => ({ ...slot, run: null, error: "" }));
 
 /*
  * Compare tab: allows user to open independent comparison windows.
  * Each window has its own type dropdown and completely independent parameters.
+ * saved / onSave: this compare group's slots, kept in App so they survive switching task or tab.
  */
-export default function CompareView({ compare, images, beforeSrc }) {
+export default function CompareView({ compare, images, beforeSrc, saved, onSave }) {
   // All available variants in this comparison group
   const allVariants = useMemo(
     () =>
@@ -25,54 +38,11 @@ export default function CompareView({ compare, images, beforeSrc }) {
   const [loading, setLoading] = useState(false);
   const [originalHist, setOriginalHist] = useState(null);
 
-  // Each comparison slot has its own independent id, type, parameters, and result
-  const [slots, setSlots] = useState(() => {
-    const v1 = allVariants[0];
-    const v2 = allVariants[1] || allVariants[0];
-    return [
-      {
-        id: `slot_${Date.now()}_1`,
-        variantLabel: v1.label,
-        values: defaultValues(v1.task, v1.fixed),
-        run: null,
-        error: "",
-      },
-      {
-        id: `slot_${Date.now()}_2`,
-        variantLabel: v2.label,
-        values: defaultValues(v2.task, v2.fixed),
-        run: null,
-        error: "",
-      },
-    ];
-  });
-
-  // Reset comparison windows when the compare group changes
-  useEffect(() => {
-    const v1 = allVariants[0];
-    const v2 = allVariants[1] || allVariants[0];
-    setSlots([
-      {
-        id: `slot_${Date.now()}_1`,
-        variantLabel: v1.label,
-        values: defaultValues(v1.task, v1.fixed),
-        run: null,
-        error: "",
-      },
-      {
-        id: `slot_${Date.now()}_2`,
-        variantLabel: v2.label,
-        values: defaultValues(v2.task, v2.fixed),
-        run: null,
-        error: "",
-      },
-    ]);
-  }, [compare, allVariants]);
-
-  // When input images change, clear stale run results
-  useEffect(() => {
-    setSlots((prev) => prev.map((s) => ({ ...s, run: null, error: "" })));
-  }, [images]);
+  // Each comparison slot has its own independent id, type, parameters, and result (starts with 2 windows)
+  const [slots, setSlots] = useSaved(saved, onSave, () => [
+    newSlot(allVariants[0]),
+    newSlot(allVariants[1] || allVariants[0]),
+  ]);
 
   // Change type of a specific window
   const changeSlotType = (slotId, newLabel) => {
@@ -112,16 +82,7 @@ export default function CompareView({ compare, images, beforeSrc }) {
   // Add a new comparison window
   const addSlot = () => {
     const defaultVariant = allVariants[slots.length % allVariants.length] || allVariants[0];
-    setSlots((prev) => [
-      ...prev,
-      {
-        id: `slot_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
-        variantLabel: defaultVariant.label,
-        values: defaultValues(defaultVariant.task, defaultVariant.fixed),
-        run: null,
-        error: "",
-      },
-    ]);
+    setSlots((prev) => [...prev, newSlot(defaultVariant)]);
   };
 
   // Remove a specific comparison window
