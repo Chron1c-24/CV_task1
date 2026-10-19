@@ -34,15 +34,6 @@ def fft_centered(gray):
     return np.fft.fftshift(F, axes=(0, 1))
 
 
-def apply_freq_filter(gray, mask):
-    """DFT -> shift -> multiply by mask -> inverse shift -> IDFT."""
-    F = fft_centered(gray)
-    G = F * mask[..., None].astype(np.float32)          # same mask on real & imag
-    G = np.fft.ifftshift(G, axes=(0, 1))
-    out = cv2.idft(G, flags=cv2.DFT_SCALE | cv2.DFT_REAL_OUTPUT)
-    return out.astype(np.float64)
-
-
 def _apply_mask_to_fft(F_shifted, mask):
     """Apply a frequency mask to an already-shifted FFT and return the spatial result."""
     G = F_shifted * mask[..., None].astype(np.float32)

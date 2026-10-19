@@ -16,24 +16,6 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-
-def load_image(file_path):
-    """Load an 8-bit image from disk and return it as RGB uint8 (or grayscale).
-
-    OpenCV loads color images as BGR/BGRA, so they are converted to RGB here,
-    once, and every service works in RGB. Raises ValueError if the file cannot
-    be read or is unsupported.
-    """
-    if not file_path:
-        raise ValueError("Please provide an image file path.")
-
-    try:
-        data = Path(file_path).read_bytes()
-    except OSError:
-        raise ValueError(f"Could not load image: {file_path}")
-    return decode_image(data, file_path)
-
-
 def decode_image(data, source="uploaded file"):
     """Decode image bytes (e.g. an upload) into RGB uint8 (or grayscale).
 
